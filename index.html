@@ -481,7 +481,24 @@ body {
     </div>
     <div class="field"><label>Purpose / Description <span class="req">*</span></label><textarea id="r-purpose" placeholder="Describe what this payment is for (invoice #, service, etc.)"></textarea></div>
     <div class="field"><label>Invoice / Reference Number</label><input type="text" id="r-invoice" placeholder="Invoice # or PO #"></div>
-  </div>
+    <div class="field">
+      <label>Upload Invoice <span class="req">*</span></label>
+      <div id="invoice-dropzone" onclick="document.getElementById('r-invoice-file').click()"
+        style="border:2px dashed var(--rule);border-radius:6px;padding:28px 20px;text-align:center;cursor:pointer;transition:all 0.15s;background:#fafaf8;">
+        <div style="font-size:24px;margin-bottom:8px;">📄</div>
+        <div style="font-size:13px;font-weight:600;color:var(--mid);">Click to upload invoice</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">PDF, JPG, or PNG · Max 10MB</div>
+      </div>
+      <input type="file" id="r-invoice-file" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="handleInvoiceUpload(this)">
+      <div id="invoice-preview" style="display:none;background:#f0f9f4;border:1px solid #a8d5b8;border-radius:6px;padding:12px 14px;margin-top:8px;align-items:center;gap:12px;">
+        <div style="font-size:22px;">✅</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--green);" id="invoice-filename"></div>
+          <div style="font-size:11px;color:var(--muted);" id="invoice-filesize"></div>
+        </div>
+        <button onclick="clearInvoice()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0;">×</button>
+      </div>
+    </div>
 
   <div class="card">
     <div class="card-title">Vendor Banking Information</div>
@@ -887,6 +904,41 @@ const SP = {
 // ══ W-9 FILE HANDLING ══
 const w9State = { file: null, base64: null, filename: null, size: null };
 
+// ══ INVOICE FILE HANDLING ══
+const invoiceState = { file: null, base64: null, filename: null, size: null };
+
+function handleInvoiceUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { alert('File is too large. Maximum size is 10MB.'); input.value = ''; return; }
+  const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+  if (!allowed.includes(file.type)) { alert('Please upload a PDF, JPG, or PNG file.'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    invoiceState.base64 = e.target.result.split(',')[1];
+    invoiceState.filename = file.name;
+    invoiceState.size = (file.size / 1024).toFixed(1) + ' KB';
+    invoiceState.file = file;
+    const preview = document.getElementById('invoice-preview');
+    document.getElementById('invoice-filename').textContent = file.name;
+    document.getElementById('invoice-filesize').textContent = invoiceState.size;
+    preview.style.display = 'flex';
+    const dz = document.getElementById('invoice-dropzone');
+    dz.style.borderColor = 'var(--green)';
+    dz.style.background = '#f0f9f4';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearInvoice() {
+  invoiceState.file = null; invoiceState.base64 = null; invoiceState.filename = null; invoiceState.size = null;
+  document.getElementById('r-invoice-file').value = '';
+  document.getElementById('invoice-preview').style.display = 'none';
+  const dz = document.getElementById('invoice-dropzone');
+  dz.style.borderColor = 'var(--rule)';
+  dz.style.background = '#fafaf8';
+}
+
 function updateW9Guidance() {
   const status = document.getElementById('r-w9-status').value;
   const guidance = document.getElementById('w9-guidance');
@@ -962,22 +1014,30 @@ function clearW9() {
 
 // Drag-and-drop support for W-9 dropzone
 document.addEventListener('DOMContentLoaded', function() {
+  // W-9 drag and drop
   const dz = document.getElementById('w9-dropzone');
-  if (!dz) return;
-  dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--blue)'; dz.style.background = 'var(--blue-light)'; });
-  dz.addEventListener('dragleave', e => { dz.style.borderColor = 'var(--rule)'; dz.style.background = '#fafaf8'; });
-  dz.addEventListener('drop', e => {
-    e.preventDefault();
-    dz.style.borderColor = 'var(--rule)'; dz.style.background = '#fafaf8';
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      const input = document.getElementById('r-w9-file');
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      input.files = dt.files;
-      handleW9Upload(input);
-    }
-  });
+  if (dz) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--blue)'; dz.style.background = 'var(--blue-light)'; });
+    dz.addEventListener('dragleave', e => { dz.style.borderColor = 'var(--rule)'; dz.style.background = '#fafaf8'; });
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.style.borderColor = 'var(--rule)'; dz.style.background = '#fafaf8';
+      const file = e.dataTransfer.files[0];
+      if (file) { const input = document.getElementById('r-w9-file'); const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files; handleW9Upload(input); }
+    });
+  }
+  // Invoice drag and drop
+  const idz = document.getElementById('invoice-dropzone');
+  if (idz) {
+    idz.addEventListener('dragover', e => { e.preventDefault(); idz.style.borderColor = 'var(--blue)'; idz.style.background = 'var(--blue-light)'; });
+    idz.addEventListener('dragleave', e => { idz.style.borderColor = 'var(--rule)'; idz.style.background = '#fafaf8'; });
+    idz.addEventListener('drop', e => {
+      e.preventDefault();
+      idz.style.borderColor = 'var(--rule)'; idz.style.background = '#fafaf8';
+      const file = e.dataTransfer.files[0];
+      if (file) { const input = document.getElementById('r-invoice-file'); const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files; handleInvoiceUpload(input); }
+    });
+  }
 });
 
 // ══ SCREENS ══
@@ -1064,6 +1124,7 @@ function validateR1() {
     el.style.borderColor = empty ? 'var(--red)' : 'var(--rule)';
     if (empty) ok = false;
   });
+  if (!invoiceState.base64) { alert('Please upload the invoice before continuing.'); return false; }
   if (!S.vendorType) { alert('Please select a vendor status.'); return false; }
   // W-9 validation
   if (!v('r-w9-status')) { alert('Please select a W-9 status.'); return false; }
@@ -1244,13 +1305,18 @@ async function saveToSharePoint(payload, stage) {
 async function submitRequestor() {
   const btn = document.getElementById('r-submit-btn');
   btn.disabled = true;
-  btn.textContent = w9State.base64 ? 'Uploading W-9 & saving to SharePoint...' : 'Saving to SharePoint...';
+  btn.textContent = w9State.base64 ? 'Uploading files & saving to SharePoint...' : 'Saving to SharePoint...';
   const result = await saveToSharePoint({
     requestor: S.requestor,
     w9: w9State.base64 ? {
       base64: w9State.base64,
       filename: `${S.wireId}_${S.requestor.payee.replace(/[^a-zA-Z0-9]/g,'_')}_W9${w9State.filename ? '.' + w9State.filename.split('.').pop() : '.pdf'}`,
       contentType: w9State.file ? w9State.file.type : 'application/pdf'
+    } : null,
+    invoice: invoiceState.base64 ? {
+      base64: invoiceState.base64,
+      filename: `${S.wireId}_${S.requestor.payee.replace(/[^a-zA-Z0-9]/g,'_')}_Invoice${invoiceState.filename ? '.' + invoiceState.filename.split('.').pop() : '.pdf'}`,
+      contentType: invoiceState.file ? invoiceState.file.type : 'application/pdf'
     } : null
   }, 'requestor_submitted');
   if (result.mock) {
